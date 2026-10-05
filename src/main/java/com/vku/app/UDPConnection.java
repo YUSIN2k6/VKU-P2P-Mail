@@ -20,12 +20,14 @@ public class UDPConnection {
         this.socket.setSendBufferSize(1024 * 1024);
     }
 
+    // Hàm gửi dữ liệu tới socket
     public void send(String data, InetAddress address, int port) throws Exception {
         byte[] buffer = data.getBytes(StandardCharsets.UTF_8);
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, port);
         socket.send(packet);
     }
 
+    // Hàm nhận dữ liệu từ socket
     public DatagramPacket receive() throws Exception {
         byte[] buffer = new byte[64000];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);

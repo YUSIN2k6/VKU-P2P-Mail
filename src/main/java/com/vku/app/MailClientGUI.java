@@ -14,15 +14,14 @@ import java.util.Base64;
 import java.util.List;
 
 public class MailClientGUI extends JFrame {
-    private JTextField txtName, txtTo, txtTitle, txtServerIP;
+    private JTextField txtName, txtPassword, txtTo, txtTitle, txtServerIP;
     private JTextArea txtMessage, txtInbox;
-    private JTextField txtAttachedFiles; // Hiển thị tên file đính kèm
-    private JButton btnConnect, btnDisconnect, btnSend, btnAddFile, btnOpenStorage;
+    private JTextField txtAttachedFiles;
+    private JButton btnLogin, btnRegister, btnDisconnect, btnSend, btnAddFile, btnOpenStorage;
     private UDPConnection connection;
     private boolean isConnected = false;
     private InetAddress serverAddress;
 
-    // Hàng đợi lưu trữ các file đã chọn
     private List<File> attachedFilesList = new ArrayList<>();
 
     private final Font mainFont = new Font("Segoe UI", Font.PLAIN, 14);
@@ -31,17 +30,17 @@ public class MailClientGUI extends JFrame {
 
     public MailClientGUI() {
         setTitle("VKU Mail Client - P2P Network");
-        setSize(650, 750);
+        setSize(700, 750); // Mở rộng thêm một chút cho khung cấu hình
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
 
         ((JPanel) getContentPane()).setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // 1. TOP PANEL
-        JPanel topPanel = new JPanel(new GridLayout(2, 3, 10, 10));
+        // 1. TOP PANEL: Cấu hình và Đăng nhập/Đăng ký
+        JPanel topPanel = new JPanel(new GridLayout(3, 3, 10, 10)); // Đổi thành 3 dòng
         topPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.GRAY), " ⚙ Cấu hình máy chủ ",
+                BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.GRAY), " ⚙ Xác thực tài khoản ",
                         TitledBorder.LEFT, TitledBorder.TOP, boldFont),
                 new EmptyBorder(5, 10, 10, 10)));
 
@@ -49,14 +48,25 @@ public class MailClientGUI extends JFrame {
         txtServerIP = new JTextField("localhost");
         txtServerIP.setFont(mainFont);
         topPanel.add(txtServerIP);
-        btnConnect = new JButton("Kết nối");
-        btnConnect.setFont(boldFont);
-        topPanel.add(btnConnect);
 
-        topPanel.add(new JLabel("Tên máy (Client):"));
+        btnRegister = new JButton("Đăng ký");
+        btnRegister.setFont(boldFont);
+        topPanel.add(btnRegister);
+
+        topPanel.add(new JLabel("Tên tài khoản:"));
         txtName = new JTextField();
         txtName.setFont(mainFont);
         topPanel.add(txtName);
+
+        btnLogin = new JButton("Đăng nhập");
+        btnLogin.setFont(boldFont);
+        topPanel.add(btnLogin);
+
+        topPanel.add(new JLabel("Mật khẩu:"));
+        txtPassword = new JTextField(); // Text thường, hiển thị rõ ký tự
+        txtPassword.setFont(mainFont);
+        topPanel.add(txtPassword);
+
         btnDisconnect = new JButton("Ngắt kết nối");
         btnDisconnect.setFont(boldFont);
         btnDisconnect.setEnabled(false);
@@ -84,8 +94,7 @@ public class MailClientGUI extends JFrame {
                         TitledBorder.LEFT, TitledBorder.TOP, boldFont),
                 new EmptyBorder(10, 10, 10, 10)));
 
-        // Header: To, Title, Attached Files
-        JPanel headerSendPanel = new JPanel(new GridLayout(3, 1, 0, 8)); // Đổi thành 3 dòng
+        JPanel headerSendPanel = new JPanel(new GridLayout(3, 1, 0, 8));
 
         JPanel toPanel = new JPanel(new BorderLayout(10, 0));
         toPanel.add(new JLabel("Người nhận:"), BorderLayout.WEST);
@@ -121,7 +130,7 @@ public class MailClientGUI extends JFrame {
 
         JPanel bottomSendPanel = new JPanel(new GridLayout(1, 3, 10, 0));
         btnSend = new JButton("Gửi Email");
-        btnAddFile = new JButton("Thêm File"); // Đổi tên nút
+        btnAddFile = new JButton("Thêm File");
         btnOpenStorage = new JButton("Mở kho lưu trữ");
 
         btnSend.setFont(boldFont);
@@ -145,46 +154,95 @@ public class MailClientGUI extends JFrame {
 
         add(splitPane, BorderLayout.CENTER);
 
-        btnConnect.addActionListener(e -> connect());
+        // Events
+        btnRegister.addActionListener(e -> register());
+        btnLogin.addActionListener(e -> login());
         btnDisconnect.addActionListener(e -> disconnect());
         btnSend.addActionListener(e -> sendMailWithAttachments());
         btnAddFile.addActionListener(e -> chooseFilesToAttach());
         btnOpenStorage.addActionListener(e -> openStorageFolder());
     }
 
-    private void connect() {
+    private void register() {
+        if (!validateInput())
+            return;
         try {
-            if (txtName.getText().trim().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Vui lòng nhập Tên máy (Client)!", "Lỗi",
-                        JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            connection = new UDPConnection();
+            if (connection == null)
+                connection = new UDPConnection();
             serverAddress = InetAddress.getByName(txtServerIP.getText().trim());
-            isConnected = true;
-            new Thread(this::listenIncomingMessages).start();
-            connection.send("LOGIN::" + txtName.getText().trim(), serverAddress, 9876);
+            // Chỉ gửi lệnh đăng ký, không chuyển sang trạng thái online (isConnected =
+            // true)
+            // Lắng nghe 1 lần để lấy kết quả đăng ký
+            connection.send("REGISTER::" + txtName.getText().trim() + "::" + txtPassword.getText().trim(),
+                    serverAddress, 9876);
 
-            new Thread(() -> {
-                while (isConnected) {
-                    try {
-                        Thread.sleep(10000); // Ngủ 10 giây
-                        // Gửi gói tin PING lên Server để giữ Port mở
-                        connection.send("PING::" + txtName.getText().trim(), serverAddress, 9876);
-                    } catch (Exception e) {
-                    }
-                }
-            }).start();
-
-            txtName.setEditable(false);
-            btnConnect.setEnabled(false);
-            btnDisconnect.setEnabled(true);
-            btnSend.setEnabled(true);
-            btnAddFile.setEnabled(true);
-            btnOpenStorage.setEnabled(true);
+            DatagramPacket packet = connection.receive();
+            String data = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).trim();
+            if (data.startsWith("SYS::")) {
+                JOptionPane.showMessageDialog(this, data.substring(5), "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            }
         } catch (Exception ex) {
-            txtInbox.append("Lỗi kết nối: " + ex.getMessage() + "\n");
+            JOptionPane.showMessageDialog(this, "Lỗi kết nối Server!", "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void login() {
+        if (!validateInput())
+            return;
+        try {
+            if (connection == null)
+                connection = new UDPConnection();
+            serverAddress = InetAddress.getByName(txtServerIP.getText().trim());
+
+            // Lắng nghe 1 lần để check đăng nhập
+            connection.send("LOGIN::" + txtName.getText().trim() + "::" + txtPassword.getText().trim(), serverAddress,
+                    9876);
+            DatagramPacket packet = connection.receive();
+            String data = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).trim();
+
+            if (data.startsWith("SYS::Đăng nhập thành công")) {
+                isConnected = true;
+                txtInbox.append("[Hệ thống]: " + data.substring(5) + "\n");
+
+                new Thread(this::listenIncomingMessages).start();
+                startKeepAliveThread();
+
+                txtName.setEditable(false);
+                txtPassword.setEditable(false);
+                btnLogin.setEnabled(false);
+                btnRegister.setEnabled(false);
+                btnDisconnect.setEnabled(true);
+                btnSend.setEnabled(true);
+                btnAddFile.setEnabled(true);
+                btnOpenStorage.setEnabled(true);
+            } else {
+                JOptionPane.showMessageDialog(this, data.replace("SYS::", ""), "Đăng nhập thất bại",
+                        JOptionPane.WARNING_MESSAGE);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Lỗi kết nối Server!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private boolean validateInput() {
+        if (txtName.getText().trim().isEmpty() || txtPassword.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập đủ Tên tài khoản và Mật khẩu!", "Lỗi",
+                    JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        return true;
+    }
+
+    private void startKeepAliveThread() {
+        new Thread(() -> {
+            while (isConnected) {
+                try {
+                    Thread.sleep(10000);
+                    connection.send("PING::" + txtName.getText().trim(), serverAddress, 9876);
+                } catch (Exception e) {
+                }
+            }
+        }).start();
     }
 
     private void listenIncomingMessages() {
@@ -197,7 +255,7 @@ public class MailClientGUI extends JFrame {
                     if (data.startsWith("SYS::")) {
                         txtInbox.append("[Hệ thống]: " + data.substring(5) + "\n");
                     } else if (data.startsWith("MAIL::")) {
-                        txtInbox.append("\n[Thư mới nhận] >>>\n" + data.substring(6) + "\n");
+                        txtInbox.append("\n" + data.substring(6) + "\n");
                     } else if (data.startsWith("FILE_FWD::")) {
                         try {
                             String[] parts = data.split("::", 4);
@@ -211,7 +269,7 @@ public class MailClientGUI extends JFrame {
 
                             File destFile = new File(myStorage, fileName);
                             Files.write(destFile.toPath(), fileBytes);
-                            txtInbox.append("[Hệ thống]: " + sender + " vừa gửi cho bạn 1 file đính kèm -> " + fileName
+                            txtInbox.append("[Hệ thống]: " + sender + " vừa gửi cho bạn 1 file -> " + fileName
                                     + " (Đã lưu vào kho)\n");
                         } catch (Exception e) {
                         }
@@ -231,25 +289,26 @@ public class MailClientGUI extends JFrame {
             }
             isConnected = false;
             connection.close();
+
             txtName.setEditable(true);
-            btnConnect.setEnabled(true);
+            txtPassword.setEditable(true);
+            btnLogin.setEnabled(true);
+            btnRegister.setEnabled(true);
             btnDisconnect.setEnabled(false);
             btnSend.setEnabled(false);
             btnAddFile.setEnabled(false);
             btnOpenStorage.setEnabled(false);
-            txtInbox.append("[Hệ thống]: Đã ngắt kết nối.\n");
 
-            // Xóa hàng đợi file
+            txtInbox.append("[Hệ thống]: Đã ngắt kết nối.\n");
             attachedFilesList.clear();
             updateAttachedFilesDisplay();
         }
     }
 
-    // Chọn file đưa vào hàng đợi
+    // Các hàm chọn file, cập nhật danh sách, gửi thư và mở kho giữ nguyên như cũ
     private void chooseFilesToAttach() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setMultiSelectionEnabled(true); // Cho phép chọn nhiều file
-
+        fileChooser.setMultiSelectionEnabled(true);
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File[] selectedFiles = fileChooser.getSelectedFiles();
             for (File file : selectedFiles) {
@@ -257,15 +316,13 @@ public class MailClientGUI extends JFrame {
                     JOptionPane.showMessageDialog(this, "File '" + file.getName() + "' vượt quá 40KB, sẽ bị bỏ qua.");
                     continue;
                 }
-                if (!attachedFilesList.contains(file)) {
+                if (!attachedFilesList.contains(file))
                     attachedFilesList.add(file);
-                }
             }
             updateAttachedFilesDisplay();
         }
     }
 
-    // Cập nhật chuỗi hiển thị tên file đính kèm
     private void updateAttachedFilesDisplay() {
         if (attachedFilesList.isEmpty()) {
             txtAttachedFiles.setText("");
@@ -280,7 +337,6 @@ public class MailClientGUI extends JFrame {
         txtAttachedFiles.setText(sb.toString());
     }
 
-    // Gửi Email và toàn bộ file đính kèm
     private void sendMailWithAttachments() {
         String to = txtTo.getText().trim();
         if (to.isEmpty()) {
@@ -291,40 +347,31 @@ public class MailClientGUI extends JFrame {
         String title = txtTitle.getText().trim();
         if (title.isEmpty())
             title = "(Không tiêu đề)";
-
         String msg = txtMessage.getText().trim();
         if (msg.isEmpty() && attachedFilesList.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Thư trống, vui lòng nhập nội dung hoặc đính kèm file!", "Lỗi",
-                    JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Thư trống!", "Lỗi", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         try {
-            // 1. Gửi gói tin văn bản thư trước (Chỉ gửi 1 lần)
             String mailReq = "SEND::" + txtName.getText().trim() + "::" + to + "::" + title + "::" + msg;
             connection.send(mailReq, serverAddress, 9876);
 
-            // 2. Lặp qua hàng đợi để gửi từng File
             for (File file : attachedFilesList) {
                 byte[] fileBytes = Files.readAllBytes(file.toPath());
                 String base64Content = Base64.getEncoder().encodeToString(fileBytes);
-                // Mã FILE mới không chứa Title/Content nữa để tiết kiệm byte
                 String fileReq = "FILE::" + txtName.getText().trim() + "::" + to + "::" + file.getName() + "::"
                         + base64Content;
                 connection.send(fileReq, serverAddress, 9876);
-
-                // Nghỉ 100ms giữa các gói UDP để tránh nghẽn
                 Thread.sleep(100);
             }
 
-            // Xóa form sau khi gửi xong
             txtTitle.setText("");
             txtMessage.setText("");
             attachedFilesList.clear();
             updateAttachedFilesDisplay();
-
         } catch (Exception e) {
-            txtInbox.append("[Lỗi]: Quá trình gửi thất bại -> " + e.getMessage() + "\n");
+            txtInbox.append("[Lỗi]: Gửi thất bại -> " + e.getMessage() + "\n");
         }
     }
 
