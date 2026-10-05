@@ -30,15 +30,14 @@ public class MailClientGUI extends JFrame {
 
     public MailClientGUI() {
         setTitle("VKU Mail Client - P2P Network");
-        setSize(700, 750); // Mở rộng thêm một chút cho khung cấu hình
+        setSize(700, 750);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
 
         ((JPanel) getContentPane()).setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // 1. TOP PANEL: Cấu hình và Đăng nhập/Đăng ký
-        JPanel topPanel = new JPanel(new GridLayout(3, 3, 10, 10)); // Đổi thành 3 dòng
+        JPanel topPanel = new JPanel(new GridLayout(3, 3, 10, 10));
         topPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.GRAY), " ⚙ Xác thực tài khoản ",
                         TitledBorder.LEFT, TitledBorder.TOP, boldFont),
@@ -63,7 +62,7 @@ public class MailClientGUI extends JFrame {
         topPanel.add(btnLogin);
 
         topPanel.add(new JLabel("Mật khẩu:"));
-        txtPassword = new JTextField(); // Text thường, hiển thị rõ ký tự
+        txtPassword = new JTextField();
         txtPassword.setFont(mainFont);
         topPanel.add(txtPassword);
 
@@ -74,7 +73,6 @@ public class MailClientGUI extends JFrame {
 
         add(topPanel, BorderLayout.NORTH);
 
-        // 2. INBOX AREA
         JPanel inboxPanel = new JPanel(new BorderLayout());
         inboxPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.GRAY), " 📥 Hộp thư & Thông báo ",
@@ -87,7 +85,6 @@ public class MailClientGUI extends JFrame {
         txtInbox.setBackground(new Color(245, 245, 245));
         inboxPanel.add(new JScrollPane(txtInbox), BorderLayout.CENTER);
 
-        // 3. COMPOSE AREA
         JPanel sendPanel = new JPanel(new BorderLayout(0, 10));
         sendPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.GRAY), " ✉ Soạn thư mới ",
@@ -154,7 +151,6 @@ public class MailClientGUI extends JFrame {
 
         add(splitPane, BorderLayout.CENTER);
 
-        // Events
         btnRegister.addActionListener(e -> register());
         btnLogin.addActionListener(e -> login());
         btnDisconnect.addActionListener(e -> disconnect());
@@ -163,74 +159,119 @@ public class MailClientGUI extends JFrame {
         btnOpenStorage.addActionListener(e -> openStorageFolder());
     }
 
-    private void register() {
-        if (!validateInput())
-            return;
-        try {
-            if (connection == null)
-                connection = new UDPConnection();
-            serverAddress = InetAddress.getByName(txtServerIP.getText().trim());
-            // Chỉ gửi lệnh đăng ký, không chuyển sang trạng thái online (isConnected =
-            // true)
-            // Lắng nghe 1 lần để lấy kết quả đăng ký
-            connection.send("REGISTER::" + txtName.getText().trim() + "::" + txtPassword.getText().trim(),
-                    serverAddress, 9876);
+    // Kiểm tra mật khẩu (Trên 8 ký tự, có in hoa, số, ký tự đặc biệt)
+    private boolean validatePassword(String password) {
+        if (password.length() < 8)
+            return false;
+        if (!password.matches(".*[A-Z].*"))
+            return false; // In hoa
+        if (!password.matches(".*\\d.*"))
+            return false; // Số
+        if (!password.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?].*"))
+            return false; // Ký tự đặc biệt
+        return true;
+    }
 
-            DatagramPacket packet = connection.receive();
-            String data = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).trim();
-            if (data.startsWith("SYS::")) {
-                JOptionPane.showMessageDialog(this, data.substring(5), "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-            }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Lỗi kết nối Server!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+    private void register() {
+        String name = txtName.getText().trim();
+        String pass = txtPassword.getText().trim();
+
+        if (name.isEmpty() || pass.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập đủ Tên tài khoản và Mật khẩu!", "Lỗi",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
         }
+
+        if (!validatePassword(pass)) {
+            JOptionPane.showMessageDialog(this,
+                    "Mật khẩu yếu!\nYêu cầu: Trên 8 ký tự, gồm ít nhất 1 chữ in hoa, 1 số, và 1 ký tự đặc biệt.",
+                    "Lỗi mật khẩu", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                if (connection == null)
+                    connection = new UDPConnection();
+                connection.setTimeout(3000); // Tránh bị treo nếu Server không phản hồi
+                serverAddress = InetAddress.getByName(txtServerIP.getText().trim());
+
+                connection.send("REGISTER::" + name + "::" + pass, serverAddress, 9876);
+
+                DatagramPacket packet = connection.receive();
+                String data = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).trim();
+
+                SwingUtilities.invokeLater(() -> {
+                    if (data.startsWith("SYS::")) {
+                        JOptionPane.showMessageDialog(this, data.substring(5), "Thông báo",
+                                JOptionPane.INFORMATION_MESSAGE);
+                    }
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Lỗi kết nối Server hoặc TimeOut!",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE));
+            } finally {
+                if (!isConnected && connection != null) {
+                    connection.close(); // Đóng tạm kết nối chờ đăng nhập
+                    connection = null;
+                }
+            }
+        }).start();
     }
 
     private void login() {
-        if (!validateInput())
-            return;
-        try {
-            if (connection == null)
-                connection = new UDPConnection();
-            serverAddress = InetAddress.getByName(txtServerIP.getText().trim());
+        String name = txtName.getText().trim();
+        String pass = txtPassword.getText().trim();
 
-            // Lắng nghe 1 lần để check đăng nhập
-            connection.send("LOGIN::" + txtName.getText().trim() + "::" + txtPassword.getText().trim(), serverAddress,
-                    9876);
-            DatagramPacket packet = connection.receive();
-            String data = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).trim();
-
-            if (data.startsWith("SYS::Đăng nhập thành công")) {
-                isConnected = true;
-                txtInbox.append("[Hệ thống]: " + data.substring(5) + "\n");
-
-                new Thread(this::listenIncomingMessages).start();
-                startKeepAliveThread();
-
-                txtName.setEditable(false);
-                txtPassword.setEditable(false);
-                btnLogin.setEnabled(false);
-                btnRegister.setEnabled(false);
-                btnDisconnect.setEnabled(true);
-                btnSend.setEnabled(true);
-                btnAddFile.setEnabled(true);
-                btnOpenStorage.setEnabled(true);
-            } else {
-                JOptionPane.showMessageDialog(this, data.replace("SYS::", ""), "Đăng nhập thất bại",
-                        JOptionPane.WARNING_MESSAGE);
-            }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Lỗi kết nối Server!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private boolean validateInput() {
-        if (txtName.getText().trim().isEmpty() || txtPassword.getText().trim().isEmpty()) {
+        if (name.isEmpty() || pass.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Vui lòng nhập đủ Tên tài khoản và Mật khẩu!", "Lỗi",
                     JOptionPane.WARNING_MESSAGE);
-            return false;
+            return;
         }
-        return true;
+
+        new Thread(() -> {
+            try {
+                if (connection == null)
+                    connection = new UDPConnection();
+                connection.setTimeout(3000); // Tránh treo máy
+                serverAddress = InetAddress.getByName(txtServerIP.getText().trim());
+
+                connection.send("LOGIN::" + name + "::" + pass, serverAddress, 9876);
+                DatagramPacket packet = connection.receive();
+                String data = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).trim();
+
+                SwingUtilities.invokeLater(() -> {
+                    if (data.startsWith("SYS::Đăng nhập thành công")) {
+                        isConnected = true;
+                        try {
+                            connection.setTimeout(0); // Trả lại chế độ nghe vô hạn
+                        } catch (Exception e) {
+                        }
+
+                        txtInbox.append("[Hệ thống]: " + data.substring(5) + "\n");
+                        new Thread(this::listenIncomingMessages).start();
+                        startKeepAliveThread();
+
+                        txtName.setEditable(false);
+                        txtPassword.setEditable(false);
+                        btnLogin.setEnabled(false);
+                        btnRegister.setEnabled(false);
+                        btnDisconnect.setEnabled(true);
+                        btnSend.setEnabled(true);
+                        btnAddFile.setEnabled(true);
+                        btnOpenStorage.setEnabled(true);
+                    } else {
+                        JOptionPane.showMessageDialog(this, data.replace("SYS::", ""), "Đăng nhập thất bại",
+                                JOptionPane.WARNING_MESSAGE);
+                        connection.close();
+                        connection = null;
+                    }
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Lỗi kết nối Server hoặc TimeOut!",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE));
+            }
+        }).start();
     }
 
     private void startKeepAliveThread() {
@@ -288,7 +329,10 @@ public class MailClientGUI extends JFrame {
             } catch (Exception e) {
             }
             isConnected = false;
-            connection.close();
+            if (connection != null) {
+                connection.close();
+                connection = null;
+            }
 
             txtName.setEditable(true);
             txtPassword.setEditable(true);
@@ -305,7 +349,6 @@ public class MailClientGUI extends JFrame {
         }
     }
 
-    // Các hàm chọn file, cập nhật danh sách, gửi thư và mở kho giữ nguyên như cũ
     private void chooseFilesToAttach() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setMultiSelectionEnabled(true);
@@ -343,7 +386,6 @@ public class MailClientGUI extends JFrame {
             JOptionPane.showMessageDialog(this, "Vui lòng nhập người nhận!", "Lỗi", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
         String title = txtTitle.getText().trim();
         if (title.isEmpty())
             title = "(Không tiêu đề)";

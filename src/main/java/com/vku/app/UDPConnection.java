@@ -8,26 +8,29 @@ public class UDPConnection {
 
     public UDPConnection(int port) throws SocketException {
         this.socket = new DatagramSocket(port);
-        // Tăng bộ đệm nhận/gửi lên 1MB để hứng file bị băm mảnh
         this.socket.setReceiveBufferSize(1024 * 1024);
         this.socket.setSendBufferSize(1024 * 1024);
     }
 
     public UDPConnection() throws SocketException {
         this.socket = new DatagramSocket();
-        // Tăng bộ đệm nhận/gửi lên 1MB
         this.socket.setReceiveBufferSize(1024 * 1024);
         this.socket.setSendBufferSize(1024 * 1024);
     }
 
-    // Hàm gửi dữ liệu tới socket
+    // THÊM HÀM NÀY
+    public void setTimeout(int timeoutMillis) throws SocketException {
+        if (socket != null) {
+            socket.setSoTimeout(timeoutMillis);
+        }
+    }
+
     public void send(String data, InetAddress address, int port) throws Exception {
         byte[] buffer = data.getBytes(StandardCharsets.UTF_8);
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, port);
         socket.send(packet);
     }
 
-    // Hàm nhận dữ liệu từ socket
     public DatagramPacket receive() throws Exception {
         byte[] buffer = new byte[64000];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);

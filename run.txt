@@ -3,3 +3,8 @@ java -jar MailServerApp-1.0-SNAPSHOT.jar
 b1 client dang nhap tai khoan thay giao
 dang nhap xong gui thu cho 1 ai do 
 mo ipconfig mo may server mo thu muc goc 
+
+huy
+MHgmail2006!
+tuan
+Nhtgmail2006!
