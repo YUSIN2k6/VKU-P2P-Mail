@@ -66,8 +66,15 @@ public class MailServerGUI extends JFrame {
 
             if (cmd.equals("LOGIN")) {
                 String name = parts[1];
-                activeClients.put(name, new InetSocketAddress(clientIP, clientPort));
-
+                InetAddress realClientIP = clientIP;
+                try {
+                    // Nếu IP trả về là localhost (127.0.0.1), thử lấy IP LAN thực của máy
+                    if (clientIP.isLoopbackAddress() || clientIP.isAnyLocalAddress()) {
+                        realClientIP = InetAddress.getLocalHost();
+                    }
+                } catch (Exception ex) {
+                }
+                activeClients.put(name, new InetSocketAddress(realClientIP, clientPort));
                 File dir = new File("storage", name);
                 if (!dir.exists()) {
                     dir.mkdirs();
