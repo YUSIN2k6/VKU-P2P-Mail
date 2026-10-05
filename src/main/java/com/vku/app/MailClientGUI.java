@@ -165,6 +165,17 @@ public class MailClientGUI extends JFrame {
             new Thread(this::listenIncomingMessages).start();
             connection.send("LOGIN::" + txtName.getText().trim(), serverAddress, 9876);
 
+            new Thread(() -> {
+                while (isConnected) {
+                    try {
+                        Thread.sleep(10000); // Ngủ 10 giây
+                        // Gửi gói tin PING lên Server để giữ Port mở
+                        connection.send("PING::" + txtName.getText().trim(), serverAddress, 9876);
+                    } catch (Exception e) {
+                    }
+                }
+            }).start();
+
             txtName.setEditable(false);
             btnConnect.setEnabled(false);
             btnDisconnect.setEnabled(true);

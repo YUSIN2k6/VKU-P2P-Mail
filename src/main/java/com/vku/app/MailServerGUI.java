@@ -64,6 +64,9 @@ public class MailServerGUI extends JFrame {
             InetAddress clientIP = packet.getAddress();
             int clientPort = packet.getPort();
 
+            if (cmd.equals("PING"))
+                return;
+
             if (cmd.equals("LOGIN")) {
                 String name = parts[1];
                 InetAddress realClientIP = clientIP;
