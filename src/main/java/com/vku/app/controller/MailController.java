@@ -13,6 +13,12 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class MailController {
+    public enum SendMode {
+        BOTH_EMAIL_AND_TCP, // 1. Gửi qua Email và TCP Server
+        ONLY_EMAIL, // 2. Chỉ gửi qua Email
+        ONLY_TCP // 3. Chỉ gửi qua TCP Server (Mặc định)
+    }
+
     private final MailRepository repository;
     private UserAccount currentUser;
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -89,7 +95,13 @@ public class MailController {
         }
     }
 
-    public void sendMail(String receiver, String title, String content, List<File> files, boolean viaGmail)
+    /**
+     * Gửi thư theo 3 chế độ lựa chọn:
+     * 1. Gửi qua Email và TCP Server
+     * 2. Chỉ gửi qua Email
+     * 3. Chỉ gửi qua TCP Server
+     */
+    public void sendMailWithMode(String receiver, String title, String content, List<File> files, SendMode mode)
             throws Exception {
         if (currentUser == null) {
             throw new IllegalStateException("Chưa đăng nhập!");
@@ -101,23 +113,24 @@ public class MailController {
             mail.setFiles(files);
         }
 
-        if (viaGmail || currentUser.getEmail().toLowerCase().endsWith("@gmail.com")) {
+        // Gửi qua Email (SMTP) nếu chọn mode 1 hoặc mode 2
+        if (mode == SendMode.BOTH_EMAIL_AND_TCP || mode == SendMode.ONLY_EMAIL) {
             EmailService.sendEmail(currentUser.getEmail(), mail);
-            repository.appendMailToUserDataFile(currentUser.getFolderPrefix(), mail);
-        } else {
+        }
+
+        // Gửi qua TCP Server nếu chọn mode 1 hoặc mode 3
+        if (mode == SendMode.BOTH_EMAIL_AND_TCP || mode == SendMode.ONLY_TCP) {
             if (tcpClient != null) {
                 tcpClient.sendMail(receiver, title, content, files);
-            } else {
-                repository.appendMailToUserDataFile(currentUser.getFolderPrefix(), mail);
             }
         }
+
+        // Luôn lưu bản ghi vào file storage/<prefix>.txt để theo dõi lịch sử
+        repository.appendMailToUserDataFile(currentUser.getFolderPrefix(), mail);
     }
 
-    public List<String> fetchInbox(int limit) throws Exception {
-        if (currentUser == null) {
-            throw new IllegalStateException("Chưa đăng nhập!");
-        }
-        return EmailService.fetchInboxPOP3(limit);
+    public List<MailMessage> fetchInboxPOP3(int limit) throws Exception {
+        return EmailService.fetchInboxPOP3Messages(limit);
     }
 
     public List<MailMessage> loadSavedMailHistory() {

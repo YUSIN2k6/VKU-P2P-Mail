@@ -72,19 +72,22 @@ Giao diện làm việc chính được thiết kế hiện đại theo **bố c
 * **Ô nhập `Gửi tới (Email):`** Điền email người nhận.
 * **Ô nhập `Tiêu đề:`** Nhập tiêu đề bức thư.
 * **Ô hiển thị `Đính kèm:`** Danh sách tên file đã chọn.
-* **Tùy chọn `[x] Gửi trực tiếp bằng SMTP`**: Tích để gửi ra Gmail Internet hoặc bỏ tích để gửi nội bộ tốc độ cao qua TCP Socket.
+* **3 Lựa chọn hình thức gửi (Radio Buttons):**
+  1. `( ) Gửi qua Email và TCP Server`: Gửi đồng thời ra Gmail Internet và đẩy nội bộ qua TCP Server.
+  2. `( ) Chỉ gửi qua Email`: Chỉ gửi qua giao thức SMTP chuẩn ra Internet.
+  3. `(•) Chỉ gửi qua TCP Server`: *(Được tích chọn sẵn mặc định)* Gửi nội bộ tốc độ cao qua TCP Socket đến các máy trong mạng LAN/Localhost.
 * **Khung soạn thảo nội dung:** Viết nội dung thư.
 * **Hàng nút bên dưới:**
-  * **`[Gửi Email & File]`**: Thực hiện gửi thư và đẩy một thẻ thông tin sang khung bên phải.
-  * **`[Đính kèm File/Ảnh]`**: Chọn file hoặc hình ảnh từ máy.
+  * **`[Gửi Email & File]`**: Thực hiện gửi thư và đẩy ngay một thẻ thông tin sang khung bên phải.
+  * **`[Đính kèm File/Ảnh]`**: Chọn file hoặc hình ảnh từ máy tính.
   * **`[Mở Storage]`**: Mở thư mục lưu trữ cá nhân.
 
 #### B. Cột bên Phải: Khung hiển thị các Thẻ thư (Mail Cards)
-* Hiển thị danh sách các thư dưới dạng **các thẻ (Card)** riêng biệt, trực quan:
-  * **Thẻ thư đã gửi (`[THƯ BẠN ĐÃ GỬI]`):** Nền xanh nhạt, hiển thị đầy đủ thời gian gửi, người nhận, tiêu đề, nội dung và các tệp đính kèm.
+* Tương tự giao diện Gmail: Hiển thị cả **thư bạn gửi đi** và **thư nhận được**:
+  * **Thẻ thư đã gửi (`[THƯ BẠN ĐÃ GỬI]`):** Nền xanh nhạt, hiển thị thời gian gửi, người nhận, tiêu đề, nội dung và các tệp đính kèm.
   * **Thẻ thư nhận được (`[THƯ NHẬN ĐƯỢC]`):** Nền trắng/xám, xuất hiện tự động theo thời gian thực khi có người gửi thư/tệp tin đến.
-  * **Nút `[Tải xuống]` tại từng tệp đính kèm:** Khi thư có file/ảnh, một nút **"Tải xuống"** sẽ hiển thị ngay cạnh tên file. Bấm vào nút này, file sẽ tự động được sao chép thẳng vào thư mục `Downloads` mặc định trong ổ C (`C:\Users\<User>\Downloads`) và hiển thị tùy chọn mở thư mục Downloads ngay lập tức.
-  * **Nút `[Tải thư POP3 (Gmail)]`:** Tải danh sách thư POP3 và đưa vào danh sách thẻ thư bên phải.
+  * **Tự động tải thư POP3 (Gmail):** Đã bỏ nút bấm thủ công; ngay khi đăng nhập ứng dụng sẽ tự động chạy luồng ngầm để kéo thư từ POP3 về hiển thị lên danh sách.
+  * **Nút `[Tải xuống]` tại từng tệp đính kèm:** Khi thư có file/ảnh, một nút **"Tải xuống"** hiển thị ngay cạnh tên file để lưu trực tiếp vào thư mục `Downloads` của ổ C máy tính (`C:\Users\<User>\Downloads`).
 
 ---
 
@@ -125,3 +128,6 @@ File: anh_demo.png
 * Thẻ thư trên giao diện hiển thị tên file được lấy từ thư mục `file_temp/`.
 * Khi người dùng nhấn nút **`[Tải xuống]`**, tệp tin sẽ được sao chép thẳng vào thư mục `Downloads` của máy tính (`C:\Users\<User>\Downloads`) để sử dụng bình thường.
 
+tuanbmt3355@gmail.com
+tuannh.24itb@vku.udn.vn
+Hihihaha123!

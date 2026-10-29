@@ -181,18 +181,19 @@ public class MailTCPServer {
                 mail.addFile(savedFile);
             }
 
-            // 1. Lưu thông tin thư vào file txt của người gửi: storage/<sender_prefix>.txt
-            repository.appendMailToUserDataFile(user.getFolderPrefix(), mail);
-
-            // 2. Lưu thông tin thư vào file txt của người nhận: storage/<receiver_prefix>.txt
+            // Lưu vào file của người nhận (nếu người nhận khác người gửi) để tránh bị lặp đôi
+            String senderPrefix = user.getFolderPrefix();
             String receiverPrefix = receiver.contains("@") ? receiver.substring(0, receiver.indexOf("@")) : receiver;
-            repository.appendMailToUserDataFile(receiverPrefix, mail);
+            
+            if (!senderPrefix.equalsIgnoreCase(receiverPrefix)) {
+                repository.appendMailToUserDataFile(receiverPrefix, mail);
+            }
 
             // Gửi phản hồi thành công về cho người gửi
             connection.sendText("SYS_OK::Đã gửi thư thành công");
             log(user.getEmail() + " đã gửi thư qua TCP đến " + receiver + " (Kèm " + fileCount + " file)");
 
-            // 3. Nếu người nhận đang online, chuyển tiếp real-time
+            // Chuyển tiếp real-time nếu người nhận đang online
             ClientHandler receiverHandler = onlineClients.get(receiver.toLowerCase());
             if (receiverHandler == null) {
                 receiverHandler = onlineClients.get(receiverPrefix.toLowerCase());

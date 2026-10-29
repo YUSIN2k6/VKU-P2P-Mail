@@ -1,6 +1,7 @@
 package com.vku.app.view;
 
 import com.vku.app.controller.MailController;
+import com.vku.app.controller.MailController.SendMode;
 import com.vku.app.model.MailMessage;
 import com.vku.app.model.UserAccount;
 
@@ -21,12 +22,14 @@ public class MailClientGUI extends JFrame {
     private JTextField txtTo, txtTitle, txtAttachedFiles;
     private JTextArea txtMessage;
     private JButton btnLogout, btnSend, btnAddFile, btnOpenStorage;
-    private JCheckBox chkGmailSMTP;
+
+    // 3 lựa chọn hình thức gửi
+    private JRadioButton rdoBoth, rdoOnlyEmail, rdoOnlyTCP;
+    private ButtonGroup btnGroupMode;
 
     // Các thành phần bên phải (Danh sách Thẻ Thư)
     private JPanel mailListContainer;
     private JScrollPane scrollMailList;
-    private JButton btnRefreshInbox;
 
     private List<File> attachedFilesList = new ArrayList<>();
     private final Font mainFont = new Font("Segoe UI", Font.PLAIN, 14);
@@ -38,10 +41,10 @@ public class MailClientGUI extends JFrame {
         UserAccount user = controller.getCurrentUser();
 
         setTitle("VKU Mail Client (TCP & SMTP/POP3) - [" + user.getEmail() + "]");
-        
-        // MỞ TOÀN MÀN HÌNH (MAXIMIZED)
+
+        // Mở toàn màn hình
         setExtendedState(JFrame.MAXIMIZED_BOTH);
-        setMinimumSize(new Dimension(1000, 650));
+        setMinimumSize(new Dimension(1050, 700));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
@@ -70,7 +73,7 @@ public class MailClientGUI extends JFrame {
                         TitledBorder.LEFT, TitledBorder.TOP, boldFont),
                 new EmptyBorder(10, 10, 10, 10)));
 
-        JPanel headerSendPanel = new JPanel(new GridLayout(4, 1, 0, 8));
+        JPanel headerSendPanel = new JPanel(new GridLayout(4, 1, 0, 6));
 
         JPanel toPanel = new JPanel(new BorderLayout(10, 0));
         toPanel.add(new JLabel("Gửi tới (Email):"), BorderLayout.WEST);
@@ -92,15 +95,30 @@ public class MailClientGUI extends JFrame {
         txtAttachedFiles.setForeground(Color.BLUE);
         attachPanel.add(txtAttachedFiles, BorderLayout.CENTER);
 
-        JPanel optPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        chkGmailSMTP = new JCheckBox("Gửi trực tiếp bằng SMTP (Bỏ chọn để gửi nội bộ qua TCP Server)", false);
-        chkGmailSMTP.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        optPanel.add(chkGmailSMTP);
+        // 3 LỰA CHỌN GỬI BẰNG JRADIOBUTTON (Mặc định chọn "Chỉ gửi qua TCP Server")
+        JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
+        rdoBoth = new JRadioButton("Gửi qua Email và TCP Server");
+        rdoOnlyEmail = new JRadioButton("Chỉ gửi qua Email");
+        rdoOnlyTCP = new JRadioButton("Chỉ gửi qua TCP Server", true);
+
+        Font rdoFont = new Font("Segoe UI", Font.PLAIN, 12);
+        rdoBoth.setFont(rdoFont);
+        rdoOnlyEmail.setFont(rdoFont);
+        rdoOnlyTCP.setFont(rdoFont);
+
+        btnGroupMode = new ButtonGroup();
+        btnGroupMode.add(rdoBoth);
+        btnGroupMode.add(rdoOnlyEmail);
+        btnGroupMode.add(rdoOnlyTCP);
+
+        modePanel.add(rdoBoth);
+        modePanel.add(rdoOnlyEmail);
+        modePanel.add(rdoOnlyTCP);
 
         headerSendPanel.add(toPanel);
         headerSendPanel.add(titlePanel);
         headerSendPanel.add(attachPanel);
-        headerSendPanel.add(optPanel);
+        headerSendPanel.add(modePanel);
         leftPanel.add(headerSendPanel, BorderLayout.NORTH);
 
         txtMessage = new JTextArea();
@@ -125,93 +143,107 @@ public class MailClientGUI extends JFrame {
         leftPanel.add(bottomSendPanel, BorderLayout.SOUTH);
 
         // =========================================================================
-        // 3. KHU VỰC BÊN PHẢI: HIỂN THỊ CÁC THẺ THƯ (GỬI VÀ NHẬN) + THANH CUỘN LỊCH SỬ
+        // 3. KHU VỰC BÊN PHẢI: HIỂN THỊ CÁC THẺ THƯ (GỬI VÀ NHẬN) + CUỘN LỊCH SỬ
         // =========================================================================
         JPanel rightPanel = new JPanel(new BorderLayout(5, 5));
         rightPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.GRAY),
-                        " Hộp thư & Lịch sử thư đã gửi/nhận ",
+                        " Hộp thư & Lịch sử thư đã gửi / nhận ",
                         TitledBorder.LEFT, TitledBorder.TOP, boldFont),
                 new EmptyBorder(5, 5, 5, 5)));
 
-        // Container xếp các thẻ thư theo chiều dọc
         mailListContainer = new JPanel();
         mailListContainer.setLayout(new BoxLayout(mailListContainer, BoxLayout.Y_AXIS));
         mailListContainer.setBackground(new Color(245, 245, 245));
 
-        // Thanh cuộn mượt mà có UnitIncrement cao để lướt xem lịch sử thuận tiện
         scrollMailList = new JScrollPane(mailListContainer);
         scrollMailList.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
         scrollMailList.getVerticalScrollBar().setUnitIncrement(22);
         scrollMailList.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220)));
         rightPanel.add(scrollMailList, BorderLayout.CENTER);
 
-        JPanel rightBottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        btnRefreshInbox = new JButton("Tải thư POP3 (Gmail)");
-        btnRefreshInbox.setFont(boldFont);
-        rightBottomPanel.add(btnRefreshInbox);
-        rightPanel.add(rightBottomPanel, BorderLayout.SOUTH);
-
         // =========================================================================
         // 4. CHIA 2 CỘT TRÁI - PHẢI BẰNG JSPLITPANE
         // =========================================================================
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
-        splitPane.setResizeWeight(0.42); // 42% cho phần soạn thư, 58% cho khung thư bên phải
+        splitPane.setResizeWeight(0.42);
         splitPane.setContinuousLayout(true);
         splitPane.setBorder(null);
         add(splitPane, BorderLayout.CENTER);
 
-        // Nạp lại toàn bộ lịch sử thư từ file storage/<prefix>.txt lên khung bên phải
+        // 1. Tự động nạp lịch sử đã lưu từ storage/<prefix>.txt
         loadHistoryCards();
 
-        // Lắng nghe TCP mail đến real-time
+        // 2. Tự động kiểm tra và kéo thư mới từ POP3 chạy nền
+        autoFetchPOP3Async();
+
+        // 3. Lắng nghe TCP mail đến real-time
         controller.startTCPListening(this::onNewTCPMailReceived);
 
         // Sự kiện các nút bấm
         btnLogout.addActionListener(e -> logout());
         btnSend.addActionListener(e -> sendEmailAction());
         btnAddFile.addActionListener(e -> chooseFilesToAttach());
-        btnRefreshInbox.addActionListener(e -> loadInboxAsync());
         btnOpenStorage.addActionListener(e -> openStorageFolder());
     }
 
     /**
-     * Nạp lịch sử các thư đã gửi và nhận trước đó từ file txt
+     * Nạp lịch sử các thư đã lưu (Thư mới nhất hiển thị ở trên cùng)
      */
     private void loadHistoryCards() {
         List<MailMessage> history = controller.loadSavedMailHistory();
         String myEmail = controller.getCurrentUser().getEmail();
+        // Duyệt theo thứ tự để thêm vào vị trí đầu tiên (index 0)
         for (MailMessage mail : history) {
             boolean isOutgoing = mail.getSender() != null && mail.getSender().equalsIgnoreCase(myEmail);
             MailCardPanel card = new MailCardPanel(mail, isOutgoing);
-            mailListContainer.add(card);
-            mailListContainer.add(Box.createVerticalStrut(10));
+            // Chèn vào vị trí 0 (trên cùng), đẩy các tin cũ xuống dưới
+            mailListContainer.add(Box.createVerticalStrut(10), 0);
+            mailListContainer.add(card, 0);
         }
         mailListContainer.revalidate();
         mailListContainer.repaint();
 
-        // Cuộn xuống thư mới nhất
         SwingUtilities.invokeLater(() -> {
             JScrollBar vertical = scrollMailList.getVerticalScrollBar();
-            vertical.setValue(vertical.getMaximum());
+            vertical.setValue(0); // Cuộn lên trên cùng để xem thư mới nhất
         });
     }
 
     /**
-     * Thêm thẻ thư mới vào khung bên phải
+     * Tự động tải thư mới từ POP3 chạy nền ngầm
+     */
+    private void autoFetchPOP3Async() {
+        new Thread(() -> {
+            try {
+                List<MailMessage> pop3Messages = controller.fetchInboxPOP3(5);
+                if (pop3Messages != null && !pop3Messages.isEmpty()) {
+                    for (MailMessage msg : pop3Messages) {
+                        addMailCard(msg, false);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }).start();
+    }
+
+    /**
+     * Thêm thẻ thư mới lên TRÊN CÙNG của khung bên phải (Đẩy các tin cũ xuống dưới)
      */
     public void addMailCard(MailMessage mail, boolean isOutgoing) {
         SwingUtilities.invokeLater(() -> {
             MailCardPanel card = new MailCardPanel(mail, isOutgoing);
-            mailListContainer.add(card);
-            mailListContainer.add(Box.createVerticalStrut(10));
+            // Chèn vào vị trí 0 (đỉnh đầu danh sách), đẩy toàn bộ thẻ cũ xuống dưới
+            mailListContainer.add(Box.createVerticalStrut(10), 0);
+            mailListContainer.add(card, 0);
+
             mailListContainer.revalidate();
             mailListContainer.repaint();
 
-            // Tự động cuộn xuống dưới cùng để thấy thư mới
+            // Tự động cuộn mượt lên trên cùng để thấy ngay thư vừa gửi/nhận
             SwingUtilities.invokeLater(() -> {
                 JScrollBar vertical = scrollMailList.getVerticalScrollBar();
-                vertical.setValue(vertical.getMaximum());
+                vertical.setValue(0);
             });
         });
     }
@@ -263,14 +295,27 @@ public class MailClientGUI extends JFrame {
 
         String title = txtTitle.getText().trim();
         String content = txtMessage.getText().trim();
-        boolean viaSMTP = chkGmailSMTP.isSelected();
 
+        SendMode mode;
+        String modeName;
+        if (rdoBoth.isSelected()) {
+            mode = SendMode.BOTH_EMAIL_AND_TCP;
+            modeName = "Email & TCP Server";
+        } else if (rdoOnlyEmail.isSelected()) {
+            mode = SendMode.ONLY_EMAIL;
+            modeName = "Email (SMTP)";
+        } else {
+            mode = SendMode.ONLY_TCP;
+            modeName = "TCP Server";
+        }
+
+        final String finalModeName = modeName;
         btnSend.setEnabled(false);
-        btnSend.setText(viaSMTP ? "Đang gửi SMTP..." : "Đang gửi TCP...");
+        btnSend.setText("Đang gửi (" + modeName + ")...");
 
         new Thread(() -> {
             try {
-                controller.sendMail(to, title, content, attachedFilesList, viaSMTP);
+                controller.sendMailWithMode(to, title, content, attachedFilesList, mode);
 
                 String currentTime = dateFormat.format(new Date());
                 MailMessage outgoingMail = new MailMessage(currentTime, controller.getCurrentUser().getEmail(), to, title, content);
@@ -279,12 +324,11 @@ public class MailClientGUI extends JFrame {
                 }
 
                 SwingUtilities.invokeLater(() -> {
-                    String method = viaSMTP ? "SMTP" : "TCP Socket";
                     JOptionPane.showMessageDialog(this,
-                            "Đã gửi thành công qua " + method + "!\nDữ liệu và tệp tin đã được lưu vào storage.",
+                            "Đã gửi thành công qua " + finalModeName + "!\nDữ liệu đã được lưu trữ.",
                             "Thành công", JOptionPane.INFORMATION_MESSAGE);
 
-                    // HIỂN THỊ THẺ THƯ VỪA GỬI VÀO KHUNG BÊN PHẢI
+                    // ĐẨY THẺ THƯ MỚI GỬI LÊN TRÊN CÙNG
                     addMailCard(outgoingMail, true);
 
                     txtTitle.setText("");
@@ -303,42 +347,7 @@ public class MailClientGUI extends JFrame {
                     btnSend.setText("Gửi Email & File");
                 });
             }
-        }).start();
-    }
 
-    private void loadInboxAsync() {
-        btnRefreshInbox.setEnabled(false);
-        btnRefreshInbox.setText("Đang tải POP3...");
-
-        new Thread(() -> {
-            try {
-                List<String> emails = controller.fetchInbox(10);
-                SwingUtilities.invokeLater(() -> {
-                    if (emails.isEmpty()) {
-                        JOptionPane.showMessageDialog(this, "Hộp thư POP3 trống hoặc không có thư mới.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-                    } else {
-                        for (String item : emails) {
-                            MailMessage popMail = new MailMessage();
-                            popMail.setSendingTime(dateFormat.format(new Date()));
-                            popMail.setSender("POP3 Server");
-                            popMail.setReceiver(controller.getCurrentUser().getEmail());
-                            popMail.setTitle("Thư tải về từ POP3");
-                            popMail.setContent(item);
-                            addMailCard(popMail, false);
-                        }
-                    }
-                });
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() -> {
-                    JOptionPane.showMessageDialog(this, "Lỗi tải POP3: " + ex.getMessage(), "Lỗi POP3",
-                            JOptionPane.ERROR_MESSAGE);
-                });
-            } finally {
-                SwingUtilities.invokeLater(() -> {
-                    btnRefreshInbox.setEnabled(true);
-                    btnRefreshInbox.setText("Tải thư POP3 (Gmail)");
-                });
-            }
         }).start();
     }
 

@@ -6,8 +6,10 @@ import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.internet.MimeUtility;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -16,70 +18,59 @@ public class EmailService {
 
     // =========================================================================
     // CẤU HÌNH HỆ THỐNG GỬI/NHẬN GMAIL (SMTP / POP3)
-    // Bạn chỉ cần điền Email và dán mã App Password 16 ký tự vào 2 dòng dưới đây:
+    // Email trường VKU dùng nền tảng Google Workspace (Gmail Server)
     // =========================================================================
     public static final String SYSTEM_GMAIL_ADDRESS = "tuannh.24itb@vku.udn.vn";
-    public static final String SYSTEM_GMAIL_APP_PASSWORD = "twou azmp lahd caoy"; // DÁN MÃ 16 KÝ TỰ VÀO ĐÂY
+    public static final String SYSTEM_GMAIL_APP_PASSWORD = "owku szkn jtjy zpnz";
     // =========================================================================
 
     /**
-     * Gửi Email qua SMTP.
-     * Sử dụng App Password của hệ thống để xác thực với Google SMTP server.
+     * Gửi Email qua SMTP Google.
      */
     public static void sendEmail(String senderEmail, MailMessage mail) throws Exception {
         Properties props = new Properties();
-        boolean isGmail = senderEmail.toLowerCase().endsWith("@gmail.com")
-                || SYSTEM_GMAIL_ADDRESS.toLowerCase().endsWith("@gmail.com");
 
-        if (isGmail) {
-            props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.host", "smtp.gmail.com");
-            props.put("mail.smtp.port", "587");
-            props.put("mail.smtp.ssl.protocols", "TLSv1.2");
-        } else {
-            // Localhost SMTP (port 25)
-            props.put("mail.smtp.host", "localhost");
-            props.put("mail.smtp.port", "25");
-            props.put("mail.smtp.auth", "false");
-        }
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
+        props.put("mail.smtp.ssl.protocols", "TLSv1.2");
 
-        final String authEmail = isGmail ? SYSTEM_GMAIL_ADDRESS : senderEmail;
-        final String authPass = isGmail ? SYSTEM_GMAIL_APP_PASSWORD.replace(" ", "") : "";
+        final String authEmail = SYSTEM_GMAIL_ADDRESS;
+        final String authPass = SYSTEM_GMAIL_APP_PASSWORD.replace(" ", "");
 
-        Session session;
-        if (isGmail) {
-            session = Session.getInstance(props, new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(authEmail, authPass);
-                }
-            });
-        } else {
-            session = Session.getInstance(props);
-        }
+        Session session = Session.getInstance(props, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(authEmail, authPass);
+            }
+        });
 
-        Message message = new MimeMessage(session);
-        // Địa chỉ hiển thị người gửi
-        message.setFrom(new InternetAddress(authEmail, senderEmail));
+        MimeMessage message = new MimeMessage(session);
+        // Mã hóa tên người gửi và tiêu đề chuẩn UTF-8 tránh lỗi ký tự tiếng Việt (như
+        // b?n nhé)
+        message.setFrom(new InternetAddress(authEmail, senderEmail, "UTF-8"));
         message.setReplyTo(new Address[] { new InternetAddress(senderEmail) });
         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(mail.getReceiver()));
-        message.setSubject(mail.getTitle() != null ? mail.getTitle() : "(Không tiêu đề)");
 
-        // Tạo nội dung Multipart hỗ trợ văn bản + tệp đính kèm (ảnh)
+        String title = (mail.getTitle() != null && !mail.getTitle().isEmpty()) ? mail.getTitle() : "(Không tiêu đề)";
+        message.setSubject(MimeUtility.encodeText(title, "UTF-8", "B"));
+
         Multipart multipart = new MimeMultipart();
 
-        // 1. Phần văn bản
+        // 1. Nội dung văn bản với charset UTF-8
         MimeBodyPart textBodyPart = new MimeBodyPart();
         textBodyPart.setText(mail.getContent() != null ? mail.getContent() : "", "UTF-8");
         multipart.addBodyPart(textBodyPart);
 
-        // 2. Phần file đính kèm
+        // 2. File đính kèm
         if (mail.getFiles() != null) {
             for (File file : mail.getFiles()) {
                 if (file.exists()) {
                     MimeBodyPart attachPart = new MimeBodyPart();
                     attachPart.attachFile(file);
+                    // Mã hóa tên file đính kèm chuẩn UTF-8
+                    attachPart.setFileName(MimeUtility.encodeText(file.getName(), "UTF-8", null));
                     multipart.addBodyPart(attachPart);
                 }
             }
@@ -90,12 +81,17 @@ public class EmailService {
     }
 
     /**
-     * Tải thư về từ hộp thư đến qua POP3 sử dụng tài khoản hệ thống đã cấu hình.
+     * Tải thư về từ hộp thư đến qua POP3 và chuyển thành danh sách MailMessage hoàn chỉnh.
      */
-    public static List<String> fetchInboxPOP3(int limit) throws Exception {
-        List<String> result = new ArrayList<>();
-        Properties props = new Properties();
+    public static List<MailMessage> fetchInboxPOP3Messages(int limit) throws Exception {
+        List<MailMessage> result = new ArrayList<>();
+        
+        String cleanPass = SYSTEM_GMAIL_APP_PASSWORD.replace(" ", "");
+        if (cleanPass.equalsIgnoreCase("xxxxxxxxxxxxxxxx") || cleanPass.length() < 8) {
+            return result;
+        }
 
+        Properties props = new Properties();
         String host = "pop.gmail.com";
         int port = 995;
 
@@ -106,7 +102,7 @@ public class EmailService {
 
         Session session = Session.getDefaultInstance(props);
         Store store = session.getStore("pop3s");
-        store.connect(host, port, SYSTEM_GMAIL_ADDRESS, SYSTEM_GMAIL_APP_PASSWORD.replace(" ", ""));
+        store.connect(host, port, SYSTEM_GMAIL_ADDRESS, cleanPass);
 
         Folder inbox = store.getFolder("INBOX");
         inbox.open(Folder.READ_ONLY);
@@ -115,32 +111,33 @@ public class EmailService {
         int total = messages.length;
         int start = Math.max(1, total - limit + 1);
 
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
         for (int i = total - 1; i >= start - 1; i--) {
             Message msg = messages[i];
-            StringBuilder sb = new StringBuilder();
-            sb.append("──────────────────────────────────────────\n");
-            sb.append("📩 Thư từ: ").append(InternetAddress.toString(msg.getFrom())).append("\n");
-            sb.append("📅 Ngày nhận: ").append(msg.getSentDate()).append("\n");
-            sb.append("📌 Tiêu đề: ").append(msg.getSubject()).append("\n");
-            sb.append("💬 Nội dung xem nhanh:\n");
             try {
+                String sender = InternetAddress.toString(msg.getFrom());
+                String title = msg.getSubject() != null ? msg.getSubject() : "(Không tiêu đề)";
+                String timeStr = msg.getSentDate() != null ? sdf.format(msg.getSentDate()) : "";
+                
+                StringBuilder contentSb = new StringBuilder();
                 Object content = msg.getContent();
                 if (content instanceof String) {
-                    sb.append(content).append("\n");
+                    contentSb.append(content);
                 } else if (content instanceof Multipart) {
                     Multipart mp = (Multipart) content;
                     for (int j = 0; j < mp.getCount(); j++) {
                         BodyPart bp = mp.getBodyPart(j);
                         if (bp.isMimeType("text/plain")) {
-                            sb.append(bp.getContent()).append("\n");
+                            contentSb.append(bp.getContent());
                             break;
                         }
                     }
                 }
-            } catch (Exception ex) {
-                sb.append("[Không thể đọc preview nội dung: ").append(ex.getMessage()).append("]\n");
-            }
-            result.add(sb.toString());
+
+                MailMessage m = new MailMessage(timeStr, sender, SYSTEM_GMAIL_ADDRESS, title, contentSb.toString().trim());
+                result.add(m);
+            } catch (Exception ignored) {}
         }
 
         inbox.close(false);
